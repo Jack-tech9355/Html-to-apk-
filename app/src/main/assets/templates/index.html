@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>My Web App</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <div class="logo-badge">⚡ HTML to APK</div>
+      <h1>Hello, World!</h1>
+      <p class="subtitle">Compiled successfully to native Android APK</p>
+    </header>
+
+    <main class="app-content">
+      <div class="card stat-card">
+        <div class="card-icon">🚀</div>
+        <div class="card-info">
+          <h3>Native Performance</h3>
+          <p>Running on Android with hardware accelerated WebView.</p>
+        </div>
+      </div>
+
+      <div class="card action-card">
+        <div class="card-icon">📱</div>
+        <div class="card-info">
+          <h3>Android Bridge</h3>
+          <p>Direct communication with native Android features.</p>
+        </div>
+        <button id="btnToast" class="btn primary-btn" onclick="triggerNativeToast()">Show Native Toast</button>
+      </div>
+
+      <div class="card feature-card">
+        <div class="card-icon">🔒</div>
+        <div class="card-info">
+          <h3>Security & Flags</h3>
+          <p id="configText">Configured with offline template engine.</p>
+        </div>
+      </div>
+    </main>
+
+    <footer class="app-footer">
+      <p>Powered by HTML to APK Builder &copy; 2026</p>
+    </footer>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "HTML to APK",
+  "description": "Production-ready Web-to-APK builder to convert HTML code, single files, or zip bundles into standalone Android APKs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

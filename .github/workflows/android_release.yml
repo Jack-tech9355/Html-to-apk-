@@ -1,0 +1,80 @@
+name: Android Release APK Builder
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build & Release HTML to APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Debug & Release APKs
+        run: |
+          ./gradlew assembleDebug --stacktrace
+          # If keystore is configured, build release; otherwise assembleDebug is prepared
+          ./gradlew assembleRelease --stacktrace || echo "Release signing key not set, fallback to debug build"
+
+      - name: Organize APK Artifacts
+        run: |
+          mkdir -p build-artifacts
+          if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
+            cp "app/build/outputs/apk/release/app-release-unsigned.apk" "build-artifacts/HTML_to_APK_v1.0_release.apk"
+          fi
+          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
+            cp "app/build/outputs/apk/release/app-release.apk" "build-artifacts/HTML_to_APK_v1.0.apk"
+          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+            cp "app/build/outputs/apk/debug/app-debug.apk" "build-artifacts/HTML_to_APK_v1.0.apk"
+          fi
+          echo "Artifacts prepared in build-artifacts:"
+          ls -la build-artifacts/
+
+      - name: Upload APK to GitHub Actions Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: HTML_to_APK_v1.0
+          path: build-artifacts/HTML_to_APK_v1.0.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release & Upload APK
+        if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name || 'v1.0.0' }}
+          name: HTML to APK Release ${{ github.ref_name || 'v1.0.0' }}
+          body: |
+            ## HTML to APK Builder - Automated Release Build
+            - Converted standalone offline Web-to-APK engine
+            - Supports HTML5, CSS3, JS, WebGL, Canvas, and media
+            - Ready for deployment on Android 7.0+ (API 24+) through Android 14+ (API 34+)
+            
+            **Asset:** `HTML_to_APK_v1.0.apk`
+          files: build-artifacts/HTML_to_APK_v1.0.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
