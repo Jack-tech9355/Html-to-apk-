@@ -32,24 +32,25 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build Debug & Release APKs
+      - name: Setup Keystore & Environment
         run: |
-          ./gradlew assembleDebug --stacktrace
-          # If keystore is configured, build release; otherwise assembleDebug is prepared
-          ./gradlew assembleRelease --stacktrace || echo "Release signing key not set, fallback to debug build"
+          # Generate debug.keystore if not present so signingConfigs.debugConfig finds it
+          if [ ! -f "debug.keystore" ]; then
+            keytool -genkey -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          fi
+          touch .env
+
+      - name: Build Debug APK
+        run: |
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Organize APK Artifacts
         run: |
           mkdir -p build-artifacts
-          if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
-            cp "app/build/outputs/apk/release/app-release-unsigned.apk" "build-artifacts/HTML_to_APK_v1.0_release.apk"
-          fi
-          if [ -f "app/build/outputs/apk/release/app-release.apk" ]; then
-            cp "app/build/outputs/apk/release/app-release.apk" "build-artifacts/HTML_to_APK_v1.0.apk"
-          elif [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
+          if [ -f "app/build/outputs/apk/debug/app-debug.apk" ]; then
             cp "app/build/outputs/apk/debug/app-debug.apk" "build-artifacts/HTML_to_APK_v1.0.apk"
           fi
-          echo "Artifacts prepared in build-artifacts:"
+          echo "Listing build-artifacts directory:"
           ls -la build-artifacts/
 
       - name: Upload APK to GitHub Actions Artifacts
@@ -70,6 +71,7 @@ jobs:
             ## HTML to APK Builder - Automated Release Build
             - Converted standalone offline Web-to-APK engine
             - Supports HTML5, CSS3, JS, WebGL, Canvas, and media
+            - Pre-compiled base APK engine with Google ApkSigner (v1, v2, v3 schemes)
             - Ready for deployment on Android 7.0+ (API 24+) through Android 14+ (API 34+)
             
             **Asset:** `HTML_to_APK_v1.0.apk`

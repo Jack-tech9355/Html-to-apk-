@@ -12,10 +12,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.model.AppBuildConfig
 import com.example.ui.BuildProgressScreen
 import com.example.ui.HomeScreen
 import com.example.ui.LivePreviewScreen
 import com.example.ui.ProjectBuilderScreen
+import com.example.ui.StandaloneAppScreen
 import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.HTMLToAPKViewModel
@@ -24,6 +26,20 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+
+    // When the compiled APK is installed and opened by the user,
+    // assets/app_config.json is present, so it directly renders their standalone web app!
+    val standaloneConfig = loadStandaloneConfig()
+    if (standaloneConfig != null) {
+      setContent {
+        MyApplicationTheme(darkTheme = true) {
+          StandaloneAppScreen(standaloneConfig)
+        }
+      }
+      return
+    }
+
+    // In the main Builder app, assets/app_config.json is not present, so it runs the Builder UI!
     setContent {
       MyApplicationTheme(darkTheme = true) {
         val viewModel: HTMLToAPKViewModel = viewModel()
@@ -60,6 +76,17 @@ class MainActivity : ComponentActivity() {
           }
         }
       }
+    }
+  }
+
+  private fun loadStandaloneConfig(): AppBuildConfig? {
+    return try {
+      assets.open("app_config.json").use { stream ->
+        val text = stream.bufferedReader().use { it.readText() }
+        AppBuildConfig.fromJson(text)
+      }
+    } catch (_: Exception) {
+      null
     }
   }
 }
