@@ -65,14 +65,17 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_name || 'v1.0.0' }}
-          name: HTML to APK Release ${{ github.ref_name || 'v1.0.0' }}
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.0' }}
+          name: HTML to APK Release ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || 'v1.0.0' }}
+          make_latest: true
           body: |
-            ## HTML to APK Builder - Automated Release Build
-            - Converted standalone offline Web-to-APK engine
+            ## 🚀 HTML to APK Builder - Official Production Release
+            - Standalone offline Web-to-APK engine
             - Supports HTML5, CSS3, JS, WebGL, Canvas, and media
-            - Pre-compiled base APK engine with Google ApkSigner (v1, v2, v3 schemes)
-            - Ready for deployment on Android 7.0+ (API 24+) through Android 14+ (API 34+)
+            - Website to APK with pull-to-refresh & offline fallback
+            - Dynamic AXML package modifier (installs as independent app)
+            - Signed with Google ApkSigner (v1, v2, v3 schemes)
+            - Ready for deployment on Android 7.0+ (API 24+) through Android 15 (API 35)
             
             **Asset:** `HTML_to_APK_v1.0.apk`
           files: build-artifacts/HTML_to_APK_v1.0.apk
