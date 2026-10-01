@@ -24,28 +24,42 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Code
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Gamepad
+import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,11 +68,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.BuildResult
+import com.example.model.SourceType
+import com.example.repository.SavedProject
 import com.example.viewmodel.AppScreen
 import com.example.viewmodel.HTMLToAPKViewModel
 import java.text.SimpleDateFormat
@@ -72,155 +89,490 @@ fun HomeScreen(
 ) {
   val context = LocalContext.current
   val recentBuilds by viewModel.recentBuilds.collectAsState()
+  val savedProjects by viewModel.savedProjects.collectAsState()
+  var showNewProjectDialog by remember { mutableStateOf(false) }
 
-  LazyColumn(
-    modifier = modifier
-      .fillMaxSize()
-      .padding(horizontal = 16.dp),
-    contentPadding = PaddingValues(vertical = 16.dp),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
-  ) {
-    // Hero Header
-    item {
-      HeroHeaderCard(
-        onCreateClick = {
-          viewModel.setBuilderStep(1)
-          viewModel.navigateTo(AppScreen.BUILDER)
-        },
-        onPreviewClick = {
-          viewModel.navigateTo(AppScreen.LIVE_PREVIEW)
-        }
-      )
-    }
-
-    // Quick Starter Presets
-    item {
-      Text(
-        text = "Quick Starter Presets",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
-      )
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+  Scaffold(
+    modifier = modifier.fillMaxSize(),
+    floatingActionButton = {
+      FloatingActionButton(
+        onClick = { showNewProjectDialog = true },
+        containerColor = Color(0xFF6366F1),
+        contentColor = Color.White,
+        modifier = Modifier.testTag("fab_new_project")
       ) {
-        PresetChip(
-          title = "Counter & Bridge",
-          icon = Icons.Default.Code,
-          color = Color(0xFF6366F1),
-          modifier = Modifier.weight(1f),
-          onClick = {
-            viewModel.loadPreset("DEFAULT")
-            viewModel.setBuilderStep(1)
-            viewModel.navigateTo(AppScreen.BUILDER)
-          }
-        )
-        PresetChip(
-          title = "Retro Tap Game",
-          icon = Icons.Default.Gamepad,
-          color = Color(0xFF10B981),
-          modifier = Modifier.weight(1f),
-          onClick = {
-            viewModel.loadPreset("GAME")
-            viewModel.setBuilderStep(1)
-            viewModel.navigateTo(AppScreen.BUILDER)
-          }
-        )
-        PresetChip(
-          title = "Cyber Telemetry",
-          icon = Icons.Default.Speed,
-          color = Color(0xFF0EA5E9),
-          modifier = Modifier.weight(1f),
-          onClick = {
-            viewModel.loadPreset("CYBER")
-            viewModel.setBuilderStep(1)
-            viewModel.navigateTo(AppScreen.BUILDER)
-          }
-        )
+        Row(
+          modifier = Modifier.padding(horizontal = 16.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(Icons.Default.Add, contentDescription = "New Project")
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("New Project", fontWeight = FontWeight.Bold)
+        }
       }
     }
+  ) { paddingValues ->
+    LazyColumn(
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(paddingValues)
+        .padding(horizontal = 16.dp),
+      contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
+      verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+      // Hero Header Card
+      item {
+        HeroHeaderCard(
+          onCreateClick = { showNewProjectDialog = true },
+          onPreviewClick = { viewModel.navigateTo(AppScreen.LIVE_PREVIEW) }
+        )
+      }
 
-    // Engine Capabilities & Specs Card
-    item {
-      EngineSpecsCard()
+      // Quick Create Bar
+      item {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          Button(
+            onClick = {
+              viewModel.createProject("My Website App", SourceType.WEB_URL, "https://example.com")
+            },
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF0EA5E9)),
+            shape = RoundedCornerShape(12.dp)
+          ) {
+            Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Website to APK", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+          }
+
+          Button(
+            onClick = {
+              viewModel.createProject("My HTML5 App", SourceType.RAW_HTML)
+            },
+            modifier = Modifier.weight(1f),
+            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+            shape = RoundedCornerShape(12.dp)
+          ) {
+            Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("HTML5 to APK", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+          }
+        }
+      }
+
+      // My Saved Projects Section
+      item {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Folder, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+              text = "My Projects (${savedProjects.size})",
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold
+            )
+          }
+
+          TextButton(onClick = { showNewProjectDialog = true }) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Create")
+          }
+        }
+      }
+
+      if (savedProjects.isEmpty()) {
+        item {
+          Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+            shape = RoundedCornerShape(14.dp)
+          ) {
+            Column(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(24.dp),
+              horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+              Text(
+                text = "No saved projects yet",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+              )
+              Text(
+                text = "Create a project with HTML code or a Website URL to get started.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+              Spacer(modifier = Modifier.height(12.dp))
+              FilledTonalButton(onClick = { showNewProjectDialog = true }) {
+                Text("+ Create First Project")
+              }
+            }
+          }
+        }
+      } else {
+        items(savedProjects, key = { it.id }) { project ->
+          SavedProjectCard(
+            project = project,
+            onOpen = { viewModel.openProject(project) },
+            onQuickBuild = {
+              viewModel.openProject(project)
+              viewModel.startBuild()
+            },
+            onPreview = {
+              viewModel.openProject(project)
+              viewModel.navigateTo(AppScreen.LIVE_PREVIEW)
+            },
+            onDelete = { viewModel.deleteProject(project.id) }
+          )
+        }
+      }
+
+      // Quick Starter Presets Section
+      item {
+        Text(
+          text = "Quick Starter Presets",
+          style = MaterialTheme.typography.titleMedium,
+          fontWeight = FontWeight.Bold,
+          modifier = Modifier.padding(top = 10.dp, bottom = 4.dp)
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          PresetChip(
+            title = "Counter & Bridge",
+            icon = Icons.Default.Code,
+            color = Color(0xFF6366F1),
+            modifier = Modifier.weight(1f),
+            onClick = {
+              viewModel.loadPreset("DEFAULT")
+              viewModel.setBuilderStep(1)
+              viewModel.navigateTo(AppScreen.BUILDER)
+            }
+          )
+          PresetChip(
+            title = "Retro Tap Game",
+            icon = Icons.Default.Gamepad,
+            color = Color(0xFF10B981),
+            modifier = Modifier.weight(1f),
+            onClick = {
+              viewModel.loadPreset("GAME")
+              viewModel.setBuilderStep(1)
+              viewModel.navigateTo(AppScreen.BUILDER)
+            }
+          )
+          PresetChip(
+            title = "Web Portal",
+            icon = Icons.Default.Language,
+            color = Color(0xFF0EA5E9),
+            modifier = Modifier.weight(1f),
+            onClick = {
+              viewModel.loadPreset("WEB_URL")
+              viewModel.setBuilderStep(1)
+              viewModel.navigateTo(AppScreen.BUILDER)
+            }
+          )
+        }
+      }
+
+      // Features Overview
+      item {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+          shape = RoundedCornerShape(16.dp)
+        ) {
+          Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+              text = "Independent APK Architecture",
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = FontWeight.Bold
+            )
+            FeaturePoint(icon = Icons.Default.Security, text = "Unique Application ID per project (never overwrites or updates builder app)")
+            FeaturePoint(icon = Icons.Default.Language, text = "Website URL wrapper with offline fallback and pull-to-refresh")
+            FeaturePoint(icon = Icons.Default.Speed, text = "Signed with Google ApkSigner (v1 + v2 + v3 schemes)")
+          }
+        }
+      }
+
+      // Recent Builds History
+      if (recentBuilds.isNotEmpty()) {
+        item {
+          Text(
+            text = "Recently Compiled APKs",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(top = 10.dp)
+          )
+        }
+        items(recentBuilds) { build ->
+          RecentBuildCard(
+            build = build,
+            onInstall = { viewModel.installApk(context, build) },
+            onSave = { viewModel.saveApkToDownloads(context, build) },
+            onShare = { viewModel.shareApk(context, build) }
+          )
+        }
+      }
     }
+  }
 
-    // Recent Builds Section
-    item {
+  // Interactive Create Project Dialog
+  if (showNewProjectDialog) {
+    CreateProjectDialog(
+      onDismiss = { showNewProjectDialog = false },
+      onCreate = { name, type, webUrl, customPackage ->
+        showNewProjectDialog = false
+        viewModel.createProject(name, type, webUrl, customPackage)
+      }
+    )
+  }
+}
+
+@Composable
+private fun SavedProjectCard(
+  project: SavedProject,
+  onOpen: () -> Unit,
+  onQuickBuild: () -> Unit,
+  onPreview: () -> Unit,
+  onDelete: () -> Unit
+) {
+  Card(
+    modifier = Modifier
+      .fillMaxWidth()
+      .clickable(onClick = onOpen),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    shape = RoundedCornerShape(16.dp),
+    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+  ) {
+    Column(modifier = Modifier.padding(16.dp)) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Text(
-          text = "Generated APK History",
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.Bold
-        )
-        if (recentBuilds.isNotEmpty()) {
-          Text(
-            text = "${recentBuilds.size} APK${if (recentBuilds.size > 1) "s" else ""}",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary
-          )
-        }
-      }
-    }
-
-    if (recentBuilds.isEmpty()) {
-      item {
-        Card(
-          modifier = Modifier.fillMaxWidth(),
-          colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-          ),
-          shape = RoundedCornerShape(16.dp)
+        Row(
+          modifier = Modifier.weight(1f),
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          Column(
+          Box(
             modifier = Modifier
-              .fillMaxWidth()
-              .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+              .size(42.dp)
+              .clip(RoundedCornerShape(12.dp))
+              .background(
+                if (project.config.sourceType == SourceType.WEB_URL) Color(0xFF0EA5E9).copy(alpha = 0.2f)
+                else Color(0xFF6366F1).copy(alpha = 0.2f)
+              ),
+            contentAlignment = Alignment.Center
           ) {
             Icon(
-              imageVector = Icons.Default.Android,
+              imageVector = if (project.config.sourceType == SourceType.WEB_URL) Icons.Default.Language else Icons.Default.Code,
               contentDescription = null,
-              modifier = Modifier.size(48.dp),
-              tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+              tint = if (project.config.sourceType == SourceType.WEB_URL) Color(0xFF38BDF8) else Color(0xFF818CF8),
+              modifier = Modifier.size(24.dp)
             )
-            Spacer(modifier = Modifier.height(8.dp))
+          }
+
+          Spacer(modifier = Modifier.width(12.dp))
+
+          Column {
             Text(
-              text = "No APKs generated yet",
-              style = MaterialTheme.typography.titleSmall,
-              fontWeight = FontWeight.SemiBold
+              text = project.name,
+              style = MaterialTheme.typography.titleMedium,
+              fontWeight = FontWeight.Bold,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
             )
-            Spacer(modifier = Modifier.height(4.dp))
             Text(
-              text = "Tap 'New Project' above to package your first HTML app into an APK.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              textAlign = androidx.compose.ui.text.style.TextAlign.Center
+              text = project.config.packageName,
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.primary,
+              fontFamily = FontFamily.Monospace,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
             )
           }
         }
+
+        IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
+          Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        }
       }
-    } else {
-      items(recentBuilds, key = { it.id }) { buildResult ->
-        RecentBuildCard(
-          build = buildResult,
-          onInstall = { viewModel.installApk(context, buildResult) },
-          onShare = { viewModel.shareApk(context, buildResult) },
-          onDownload = { viewModel.saveApkToDownloads(context, buildResult) },
-          onPreview = {
-            viewModel.updateTitle(buildResult.config.appTitle)
-            viewModel.updateRawHtml(buildResult.config.rawHtmlContent)
-            viewModel.navigateTo(AppScreen.LIVE_PREVIEW)
-          }
-        )
+
+      Spacer(modifier = Modifier.height(8.dp))
+
+      Text(
+        text = if (project.config.sourceType == SourceType.WEB_URL) "Target: ${project.config.webUrl}" else project.description,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis
+      )
+
+      Spacer(modifier = Modifier.height(12.dp))
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+      ) {
+        FilledTonalButton(
+          onClick = onOpen,
+          modifier = Modifier.weight(1f),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+          Icon(Icons.Default.Edit, contentDescription = null, modifier = Modifier.size(15.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Edit", fontSize = 12.sp)
+        }
+
+        FilledTonalButton(
+          onClick = onPreview,
+          modifier = Modifier.weight(1.1f),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+          Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(15.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Preview", fontSize = 12.sp)
+        }
+
+        Button(
+          onClick = onQuickBuild,
+          modifier = Modifier.weight(1.2f),
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
+          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+        ) {
+          Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(15.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Build APK", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
       }
     }
   }
+}
+
+@Composable
+private fun CreateProjectDialog(
+  onDismiss: () -> Unit,
+  onCreate: (name: String, type: SourceType, webUrl: String, customPackage: String) -> Unit
+) {
+  var projectName by remember { mutableStateOf("My App") }
+  var selectedType by remember { mutableStateOf(SourceType.RAW_HTML) }
+  var webUrl by remember { mutableStateOf("https://") }
+
+  val slug = projectName.lowercase().replace(Regex("[^a-z0-9]"), "").ifEmpty { "app" }
+  val autoPackage = "com.htmltoapk.$slug"
+
+  AlertDialog(
+    onDismissRequest = onDismiss,
+    title = {
+      Text(text = "Create New Project", fontWeight = FontWeight.Bold)
+    },
+    text = {
+      Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+      ) {
+        Text(
+          text = "Create an independent Android application that installs side-by-side on device.",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        OutlinedTextField(
+          value = projectName,
+          onValueChange = { projectName = it },
+          label = { Text("Project Name") },
+          placeholder = { Text("e.g. My Portfolio") },
+          singleLine = true,
+          modifier = Modifier.fillMaxWidth()
+        )
+
+        Text(
+          text = "Select Project Mode:",
+          style = MaterialTheme.typography.labelMedium,
+          fontWeight = FontWeight.SemiBold
+        )
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          FilterChip(
+            selected = selectedType == SourceType.RAW_HTML,
+            onClick = { selectedType = SourceType.RAW_HTML },
+            label = { Text("HTML5 Code") },
+            leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp)) }
+          )
+          FilterChip(
+            selected = selectedType == SourceType.WEB_URL,
+            onClick = { selectedType = SourceType.WEB_URL },
+            label = { Text("Website URL") },
+            leadingIcon = { Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp)) }
+          )
+        }
+
+        if (selectedType == SourceType.WEB_URL) {
+          OutlinedTextField(
+            value = webUrl,
+            onValueChange = { webUrl = it },
+            label = { Text("Website URL") },
+            placeholder = { Text("https://myportfolio.netlify.app") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+          )
+        }
+
+        // Package Name Display
+        Column {
+          Text(
+            text = "Unique Package ID (Application ID):",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+          )
+          Text(
+            text = autoPackage,
+            style = MaterialTheme.typography.labelMedium,
+            fontFamily = FontFamily.Monospace,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+          )
+          Text(
+            text = "✓ Distinct ID guarantees Android installs as a new app without asking to update.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color(0xFF10B981),
+            fontSize = 11.sp
+          )
+        }
+      }
+    },
+    confirmButton = {
+      Button(
+        onClick = {
+          if (projectName.isNotBlank()) {
+            onCreate(projectName.trim(), selectedType, webUrl.trim(), autoPackage)
+          }
+        },
+        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1))
+      ) {
+        Text("Create & Open", fontWeight = FontWeight.Bold)
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("Cancel")
+      }
+    }
+  )
 }
 
 @Composable
@@ -228,64 +580,71 @@ private fun HeroHeaderCard(
   onCreateClick: () -> Unit,
   onPreviewClick: () -> Unit
 ) {
-  val gradient = Brush.linearGradient(
-    colors = listOf(
-      Color(0xFF312E81),
-      Color(0xFF1E1B4B),
-      Color(0xFF0F172A)
-    )
-  )
-
-  Card(
+  ElevatedCard(
     modifier = Modifier
       .fillMaxWidth()
       .testTag("hero_header_card"),
     shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(containerColor = Color.Transparent)
+    colors = CardDefaults.elevatedCardColors(containerColor = Color(0xFF131C31))
   ) {
     Box(
       modifier = Modifier
-        .background(gradient)
-        .border(1.dp, Color(0xFF6366F1).copy(alpha = 0.3f), RoundedCornerShape(24.dp))
+        .fillMaxWidth()
+        .background(
+          Brush.verticalGradient(
+            colors = listOf(
+              Color(0xFF312E81).copy(alpha = 0.5f),
+              Color(0xFF0F172A)
+            )
+          )
+        )
         .padding(20.dp)
     ) {
       Column {
         Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
-          Surface(
-            color = Color(0xFF6366F1).copy(alpha = 0.25f),
-            shape = CircleShape,
-            border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF818CF8).copy(alpha = 0.5f))
-          ) {
-            Text(
-              text = "⚡ PRE-COMPILED TEMPLATE ENGINE",
-              color = Color(0xFFA5B4FC),
-              fontSize = 10.sp,
-              fontWeight = FontWeight.Bold,
-              modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-              letterSpacing = 0.8.sp
-            )
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+              modifier = Modifier
+                .size(46.dp)
+                .clip(CircleShape)
+                .background(Color(0xFF6366F1)),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                imageVector = Icons.Default.Android,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(28.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+              Text(
+                text = "HTML to APK",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+              )
+              Text(
+                text = "Native Android App Generator",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color(0xFF38BDF8)
+              )
+            }
           }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Text(
-          text = "HTML to Android APK",
-          fontSize = 24.sp,
-          fontWeight = FontWeight.ExtraBold,
-          color = Color.White
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        Text(
-          text = "Package raw HTML, CSS, JavaScript, or ZIP bundles into standalone, signed Android APKs completely offline.",
-          fontSize = 13.sp,
+          text = "Build production-ready, installable Android APKs directly from HTML5/CSS/JS or any live website URL with zero coding required.",
+          style = MaterialTheme.typography.bodyMedium,
           color = Color(0xFFCBD5E1),
-          lineHeight = 18.sp
+          lineHeight = 20.sp
         )
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -297,30 +656,24 @@ private fun HeroHeaderCard(
           Button(
             onClick = onCreateClick,
             modifier = Modifier
-              .weight(1f)
-              .testTag("new_project_button"),
+              .weight(1.3f)
+              .testTag("hero_create_project_button"),
             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(14.dp)
           ) {
             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("New Project", fontWeight = FontWeight.Bold)
+            Text("Create Project", fontWeight = FontWeight.Bold)
           }
 
-          FilledTonalButton(
+          OutlinedButton(
             onClick = onPreviewClick,
-            modifier = Modifier
-              .weight(1f)
-              .testTag("live_preview_button"),
-            colors = ButtonDefaults.filledTonalButtonColors(
-              containerColor = Color(0xFF1E293B),
-              contentColor = Color(0xFFE2E8F0)
-            ),
-            shape = RoundedCornerShape(12.dp)
+            modifier = Modifier.weight(1f),
+            shape = RoundedCornerShape(14.dp)
           ) {
-            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text("Live Preview")
+            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("Sandbox")
           }
         }
       }
@@ -340,27 +693,26 @@ private fun PresetChip(
     modifier = modifier
       .clip(RoundedCornerShape(14.dp))
       .clickable(onClick = onClick),
-    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-    shape = RoundedCornerShape(14.dp),
-    border = androidx.compose.foundation.BorderStroke(1.dp, color.copy(alpha = 0.3f))
+    color = MaterialTheme.colorScheme.surfaceContainer,
+    tonalElevation = 2.dp
   ) {
     Column(
       modifier = Modifier.padding(12.dp),
-      horizontalAlignment = Alignment.CenterHorizontally,
-      verticalArrangement = Arrangement.Center
+      horizontalAlignment = Alignment.CenterHorizontally
     ) {
       Box(
         modifier = Modifier
           .size(36.dp)
-          .background(color.copy(alpha = 0.15f), CircleShape),
+          .clip(CircleShape)
+          .background(color.copy(alpha = 0.15f)),
         contentAlignment = Alignment.Center
       ) {
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))
       }
-      Spacer(modifier = Modifier.height(8.dp))
+      Spacer(modifier = Modifier.height(6.dp))
       Text(
         text = title,
-        style = MaterialTheme.typography.labelMedium,
+        style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.Bold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis
@@ -370,56 +722,22 @@ private fun PresetChip(
 }
 
 @Composable
-private fun EngineSpecsCard() {
-  Card(
-    modifier = Modifier.fillMaxWidth(),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-    shape = RoundedCornerShape(16.dp)
+private fun FeaturePoint(icon: ImageVector, text: String) {
+  Row(
+    verticalAlignment = Alignment.CenterVertically,
+    modifier = Modifier.fillMaxWidth()
   ) {
-    Column(modifier = Modifier.padding(16.dp)) {
-      Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-      ) {
-        Icon(
-          imageVector = Icons.Default.Security,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(18.dp)
-        )
-        Text(
-          text = "Compilation Pipeline Specs",
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.Bold
-        )
-      }
-
-      Spacer(modifier = Modifier.height(10.dp))
-
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
-      ) {
-        SpecItem(label = "Signature", value = "v1 JAR (SHA256)")
-        SpecItem(label = "Target SDK", value = "Android 14 (API 34)")
-        SpecItem(label = "Runtime", value = "Hardware WebKit")
-      }
-    }
-  }
-}
-
-@Composable
-private fun SpecItem(label: String, value: String) {
-  Column {
-    Text(
-      text = label,
-      style = MaterialTheme.typography.labelSmall,
-      color = MaterialTheme.colorScheme.onSurfaceVariant
+    Icon(
+      imageVector = icon,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.primary,
+      modifier = Modifier.size(18.dp)
     )
+    Spacer(modifier = Modifier.width(10.dp))
     Text(
-      text = value,
+      text = text,
       style = MaterialTheme.typography.bodySmall,
-      fontWeight = FontWeight.SemiBold
+      color = MaterialTheme.colorScheme.onSurfaceVariant
     )
   }
 }
@@ -428,78 +746,36 @@ private fun SpecItem(label: String, value: String) {
 private fun RecentBuildCard(
   build: BuildResult,
   onInstall: () -> Unit,
-  onShare: () -> Unit,
-  onDownload: () -> Unit,
-  onPreview: () -> Unit
+  onSave: () -> Unit,
+  onShare: () -> Unit
 ) {
-  val dateStr = SimpleDateFormat("MMM dd, HH:mm", Locale.getDefault()).format(Date(build.timestamp))
-
-  ElevatedCard(
-    modifier = Modifier
-      .fillMaxWidth()
-      .testTag("recent_build_${build.id}"),
-    shape = RoundedCornerShape(16.dp)
+  Card(
+    modifier = Modifier.fillMaxWidth(),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    shape = RoundedCornerShape(14.dp)
   ) {
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier.padding(14.dp)) {
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        Row(
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-          Box(
-            modifier = Modifier
-              .size(40.dp)
-              .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.Default.Android,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.size(24.dp)
-            )
-          }
-          Column {
-            Text(
-              text = build.config.appTitle,
-              style = MaterialTheme.typography.titleSmall,
-              fontWeight = FontWeight.Bold
-            )
-            Text(
-              text = "${build.config.packageName} • v${build.config.versionName}",
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        }
-
-        Surface(
-          color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-          shape = RoundedCornerShape(8.dp)
-        ) {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
-            text = build.formattedSize,
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+            text = build.config.appTitle,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+          )
+          Text(
+            text = "${build.config.packageName} • ${build.formattedSize}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontFamily = FontFamily.Monospace
           )
         }
       }
 
       Spacer(modifier = Modifier.height(10.dp))
-
-      Text(
-        text = "Built on $dateStr • ${build.durationMs}ms compile time",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-
-      Spacer(modifier = Modifier.height(12.dp))
 
       Row(
         modifier = Modifier.fillMaxWidth(),
@@ -508,30 +784,32 @@ private fun RecentBuildCard(
         Button(
           onClick = onInstall,
           modifier = Modifier.weight(1f),
-          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+          colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF10B981)),
+          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
-          Text("Install", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+          Icon(Icons.Default.Android, contentDescription = null, modifier = Modifier.size(14.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Install", fontSize = 11.sp, fontWeight = FontWeight.Bold)
         }
 
-        OutlinedButton(
-          onClick = onDownload,
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+        FilledTonalButton(
+          onClick = onSave,
+          modifier = Modifier.weight(1f),
+          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
-          Icon(Icons.Default.Download, contentDescription = "Download", modifier = Modifier.size(16.dp))
+          Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(14.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Download", fontSize = 11.sp)
         }
 
         OutlinedButton(
           onClick = onShare,
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
+          modifier = Modifier.weight(1f),
+          contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
         ) {
-          Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(16.dp))
-        }
-
-        OutlinedButton(
-          onClick = onPreview,
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-        ) {
-          Icon(Icons.Default.PlayArrow, contentDescription = "Preview", modifier = Modifier.size(16.dp))
+          Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(14.dp))
+          Spacer(modifier = Modifier.width(4.dp))
+          Text("Share", fontSize = 11.sp)
         }
       }
     }

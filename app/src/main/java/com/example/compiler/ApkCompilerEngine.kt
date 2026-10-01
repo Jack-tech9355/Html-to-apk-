@@ -72,6 +72,7 @@ class ApkCompilerEngine(private val context: Context) {
     if (!baseApkFile.exists() || !baseApkFile.canRead()) {
       val candidates = listOf(
         File(context.filesDir, "base_template.apk"),
+        File("/app/applet/.build-outputs/app-debug.apk"),
         File("/app/applet/app/build/outputs/apk/debug/app-debug.apk"),
         File(context.cacheDir, "app-debug.apk")
       )
@@ -161,6 +162,26 @@ class ApkCompilerEngine(private val context: Context) {
         }
         log("Unpacked ZIP bundle entries into assets/www/", LogLevel.INFO)
       }
+      SourceType.WEB_URL -> {
+        val redirectHtml = """
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>${config.appTitle}</title>
+            <script>
+              window.location.replace("${config.webUrl}");
+            </script>
+          </head>
+          <body>
+          </body>
+          </html>
+        """.trimIndent()
+        dynamicAssets["assets/www/index.html"] = redirectHtml.toByteArray(StandardCharsets.UTF_8)
+        dynamicAssets["assets/www/offline.html"] = config.offlineFallbackHtml.toByteArray(StandardCharsets.UTF_8)
+        log("Configured Web URL target: ${config.webUrl}", LogLevel.INFO)
+      }
     }
 
     // Inject assets/app_config.json for standalone auto-launch
@@ -168,7 +189,7 @@ class ApkCompilerEngine(private val context: Context) {
     dynamicAssets["assets/app_config.json"] = configJsonBytes
     log("Serialized assets/app_config.json with runtime flags & toggles", LogLevel.INFO)
 
-    log("[STAGE 4/5] Re-packaging APK container preserving binary AndroidManifest & DEX...", LogLevel.STAGE)
+    log("[STAGE 4/5] Re-packaging APK & rewriting package to ${config.packageName}...", LogLevel.STAGE)
     delay(200)
 
     // Assemble unsigned APK: copy base binary files (AndroidManifest, DEX, resources.arsc) and inject new assets
@@ -186,8 +207,20 @@ class ApkCompilerEngine(private val context: Context) {
       if (name == "assets/app_config.json") continue
       if (name.startsWith("assets/www/")) continue
 
+      if (name == "AndroidManifest.xml") {
+        // Rewrite the package name in Android binary XML (AXML)
+        val origBytes = zipFile.getInputStream(entry).use { it.readBytes() }
+        val modifiedBytes = AxmlPackageModifier.modifyPackageName(origBytes, "jk.htmltoapk.sss", config.packageName)
+        val newEntry = ZipEntry("AndroidManifest.xml")
+        newEntry.time = entry.time
+        zos.putNextEntry(newEntry)
+        zos.write(modifiedBytes)
+        zos.closeEntry()
+        log("Rewrote binary AndroidManifest.xml package -> ${config.packageName}", LogLevel.INFO)
+        continue
+      }
+
       val newEntry = ZipEntry(name)
-      // Reset timestamps and compression
       newEntry.time = entry.time
       zos.putNextEntry(newEntry)
       zipFile.getInputStream(entry).use { it.copyTo(zos) }

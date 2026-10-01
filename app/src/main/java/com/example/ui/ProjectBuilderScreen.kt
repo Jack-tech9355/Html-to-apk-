@@ -330,99 +330,166 @@ private fun Step1SourceCode(viewModel: HTMLToAPKViewModel, config: AppBuildConfi
         FilterChip(
           selected = config.sourceType == SourceType.RAW_HTML,
           onClick = { viewModel.updateSourceType(SourceType.RAW_HTML) },
-          label = { Text("Raw Code Editor") },
+          label = { Text("Code Editor") },
           leadingIcon = { Icon(Icons.Default.Code, contentDescription = null, modifier = Modifier.size(16.dp)) }
+        )
+        FilterChip(
+          selected = config.sourceType == SourceType.WEB_URL,
+          onClick = { viewModel.updateSourceType(SourceType.WEB_URL) },
+          label = { Text("Website URL") },
+          leadingIcon = { Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(16.dp)) }
         )
         FilterChip(
           selected = config.sourceType == SourceType.FILE_HTML,
           onClick = { filePickerLauncher.launch(arrayOf("text/html", "application/zip", "*/*")) },
-          label = { Text("Import File / Zip") },
+          label = { Text("Import File") },
           leadingIcon = { Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(16.dp)) }
         )
       }
     }
 
-    // Preset quick starter selector
-    item {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Text(
-          text = "Load Template:",
-          style = MaterialTheme.typography.labelMedium,
-          fontWeight = FontWeight.SemiBold
-        )
-        FilledTonalButton(
-          onClick = { viewModel.loadPreset("DEFAULT") },
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+    if (config.sourceType == SourceType.WEB_URL) {
+      // Website URL Input Card
+      item {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+          shape = RoundedCornerShape(16.dp)
         ) {
-          Text("Basic App", fontSize = 11.sp)
-        }
-        FilledTonalButton(
-          onClick = { viewModel.loadPreset("GAME") },
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-          Text("Retro Game", fontSize = 11.sp)
-        }
-        FilledTonalButton(
-          onClick = { viewModel.loadPreset("CYBER") },
-          contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-        ) {
-          Text("Dashboard", fontSize = 11.sp)
-        }
-      }
-    }
-
-    // Code Editor Card
-    item {
-      Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        shape = RoundedCornerShape(16.dp)
-      ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
+          Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              Icon(Icons.Default.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+              Spacer(modifier = Modifier.width(8.dp))
+              Text(
+                text = "Website to APK Converter",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+              )
+            }
             Text(
-              text = "index.html (${config.rawHtmlContent.length} chars)",
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.Bold,
-              fontFamily = FontFamily.Monospace
+              text = "Convert any web URL or Progressive Web App (PWA) into an installable Android APK with native pull-to-refresh and offline support.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Row {
-              IconButton(onClick = {
-                val clipText = clipboardManager.getText()?.text
-                if (!clipText.isNullOrEmpty()) {
-                  viewModel.updateRawHtml(clipText)
+
+            OutlinedTextField(
+              value = config.webUrl,
+              onValueChange = { viewModel.updateWebUrl(it) },
+              label = { Text("Website / Web App URL") },
+              placeholder = { Text("https://myportfolio.netlify.app") },
+              modifier = Modifier.fillMaxWidth().testTag("web_url_input"),
+              singleLine = true,
+              trailingIcon = {
+                IconButton(onClick = {
+                  val clip = clipboardManager.getText()?.text
+                  if (!clip.isNullOrBlank()) viewModel.updateWebUrl(clip)
+                }) {
+                  Icon(Icons.Default.ContentCopy, contentDescription = "Paste URL", modifier = Modifier.size(18.dp))
                 }
-              }) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Paste", modifier = Modifier.size(18.dp))
               }
-              IconButton(onClick = { viewModel.updateRawHtml("") }) {
-                Icon(Icons.Default.Delete, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+            )
+
+            // Quick preset URL suggestions
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+              FilledTonalButton(
+                onClick = { viewModel.updateWebUrl("https://example.com") },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+              ) {
+                Text("example.com", fontSize = 11.sp)
+              }
+              FilledTonalButton(
+                onClick = { viewModel.updateWebUrl("https://google.com") },
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+              ) {
+                Text("google.com", fontSize = 11.sp)
               }
             }
           }
-
-          OutlinedTextField(
-            value = config.rawHtmlContent,
-            onValueChange = { viewModel.updateRawHtml(it) },
-            modifier = Modifier
-              .fillMaxWidth()
-              .heightIn(min = 280.dp, max = 380.dp)
-              .testTag("html_code_editor"),
-            textStyle = MaterialTheme.typography.bodySmall.copy(
-              fontFamily = FontFamily.Monospace,
-              fontSize = 12.sp,
-              lineHeight = 16.sp
-            ),
-            placeholder = { Text("<!DOCTYPE html>\n<html>\n  <body>\n    <h1>Hello Android!</h1>\n  </body>\n</html>") }
+        }
+      }
+    } else {
+      // Preset quick starter selector
+      item {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = "Load Template:",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
           )
+          FilledTonalButton(
+            onClick = { viewModel.loadPreset("DEFAULT") },
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+          ) {
+            Text("Basic App", fontSize = 11.sp)
+          }
+          FilledTonalButton(
+            onClick = { viewModel.loadPreset("GAME") },
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+          ) {
+            Text("Retro Game", fontSize = 11.sp)
+          }
+          FilledTonalButton(
+            onClick = { viewModel.loadPreset("CYBER") },
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+          ) {
+            Text("Dashboard", fontSize = 11.sp)
+          }
+        }
+      }
+
+      // Code Editor Card
+      item {
+        Card(
+          modifier = Modifier.fillMaxWidth(),
+          colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+          shape = RoundedCornerShape(16.dp)
+        ) {
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "index.html (${config.rawHtmlContent.length} chars)",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+              )
+              Row {
+                IconButton(onClick = {
+                  val clipText = clipboardManager.getText()?.text
+                  if (!clipText.isNullOrEmpty()) {
+                    viewModel.updateRawHtml(clipText)
+                  }
+                }) {
+                  Icon(Icons.Default.ContentCopy, contentDescription = "Paste", modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = { viewModel.updateRawHtml("") }) {
+                  Icon(Icons.Default.Delete, contentDescription = "Clear", modifier = Modifier.size(18.dp))
+                }
+              }
+            }
+
+            OutlinedTextField(
+              value = config.rawHtmlContent,
+              onValueChange = { viewModel.updateRawHtml(it) },
+              modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 280.dp, max = 380.dp)
+                .testTag("html_code_editor"),
+              textStyle = MaterialTheme.typography.bodySmall.copy(
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+                lineHeight = 16.sp
+              ),
+              placeholder = { Text("<!DOCTYPE html>\n<html>\n  <body>\n    <h1>Hello Android!</h1>\n  </body>\n</html>") }
+            )
+          }
         }
       }
     }

@@ -3,6 +3,7 @@ package com.example.webview
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import com.example.model.SourceType
 import android.net.Uri
 import android.os.Build
 import android.view.ActionMode
@@ -464,6 +465,13 @@ private fun createConfiguredWebView(
         }
       }
 
+      override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+        super.onReceivedError(view, request, error)
+        if (request?.isForMainFrame == true && config.sourceType == SourceType.WEB_URL) {
+          view?.loadDataWithBaseURL("https://appassets.androidcache.net/", config.offlineFallbackHtml, "text/html", "UTF-8", null)
+        }
+      }
+
       override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
         val url = request?.url?.toString() ?: return false
         if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("file:///")) {
@@ -482,6 +490,15 @@ private fun createConfiguredWebView(
 }
 
 private fun loadContentIntoWebView(webView: WebView, config: AppBuildConfig) {
+  if (config.sourceType == SourceType.WEB_URL && config.webUrl.isNotBlank()) {
+    var targetUrl = config.webUrl.trim()
+    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+      targetUrl = "https://$targetUrl"
+    }
+    webView.loadUrl(targetUrl)
+    return
+  }
+
   var content = config.rawHtmlContent
   if (config.customCss.isNotBlank()) {
     content = content.replace("</head>", "<style>\n${config.customCss}\n</style>\n</head>")

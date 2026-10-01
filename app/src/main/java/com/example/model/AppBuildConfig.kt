@@ -6,7 +6,8 @@ import org.json.JSONObject
 enum class SourceType {
   RAW_HTML,
   FILE_HTML,
-  ZIP_BUNDLE
+  ZIP_BUNDLE,
+  WEB_URL
 }
 
 enum class LogLevel {
@@ -79,7 +80,7 @@ data class AppPermissions(
 data class AppBuildConfig(
   val id: String = java.util.UUID.randomUUID().toString(),
   val appTitle: String = "My Web App",
-  val packageName: String = "com.user.htmlapp",
+  val packageName: String = "com.htmltoapk.mywebapp",
   val versionCode: Int = 1,
   val versionName: String = "1.0.0",
   val enableTitlebar: Boolean = false,
@@ -92,6 +93,8 @@ data class AppBuildConfig(
   val splashUri: String? = null,
   val sourceType: SourceType = SourceType.RAW_HTML,
   val rawHtmlContent: String = DEFAULT_HTML_PRESET,
+  val webUrl: String = "https://example.com",
+  val offlineFallbackHtml: String = DEFAULT_OFFLINE_HTML,
   val customCss: String = "",
   val customJs: String = "",
   val orientation: String = "PORTRAIT",
@@ -115,6 +118,8 @@ data class AppBuildConfig(
       put("splashUri", splashUri ?: "")
       put("sourceType", sourceType.name)
       put("rawHtmlContent", rawHtmlContent)
+      put("webUrl", webUrl)
+      put("offlineFallbackHtml", offlineFallbackHtml)
       put("customCss", customCss)
       put("customJs", customJs)
       put("orientation", orientation)
@@ -129,12 +134,34 @@ data class AppBuildConfig(
   }
 
   companion object {
+    val DEFAULT_OFFLINE_HTML = """
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <style>
+          body { font-family: -apple-system, sans-serif; background: #0F172A; color: #F8FAFC; text-align: center; padding: 40px 20px; }
+          .icon { font-size: 54px; margin-bottom: 16px; }
+          h2 { margin: 0 0 10px; color: #38BDF8; }
+          p { color: #94A3B8; font-size: 14px; line-height: 1.5; }
+          .btn { display: inline-block; margin-top: 20px; padding: 12px 24px; background: #6366F1; color: white; border-radius: 20px; text-decoration: none; font-weight: bold; }
+        </style>
+      </head>
+      <body>
+        <div class="icon">📡</div>
+        <h2>You are currently offline</h2>
+        <p>Could not connect to the network. Please check your internet connection and try reloading.</p>
+        <a href="javascript:location.reload();" class="btn">Retry Connection</a>
+      </body>
+      </html>
+    """.trimIndent()
+
     fun fromJson(jsonStr: String): AppBuildConfig {
       val json = JSONObject(jsonStr)
       return AppBuildConfig(
         id = json.optString("id", java.util.UUID.randomUUID().toString()),
         appTitle = json.optString("appTitle", "My Web App"),
-        packageName = json.optString("packageName", "com.user.htmlapp"),
+        packageName = json.optString("packageName", "com.htmltoapk.mywebapp"),
         versionCode = json.optInt("versionCode", 1),
         versionName = json.optString("versionName", "1.0.0"),
         enableTitlebar = json.optBoolean("enableTitlebar", false),
@@ -151,6 +178,8 @@ data class AppBuildConfig(
           SourceType.RAW_HTML
         },
         rawHtmlContent = json.optString("rawHtmlContent", DEFAULT_HTML_PRESET),
+        webUrl = json.optString("webUrl", "https://example.com"),
+        offlineFallbackHtml = json.optString("offlineFallbackHtml", DEFAULT_OFFLINE_HTML),
         customCss = json.optString("customCss", ""),
         customJs = json.optString("customJs", ""),
         orientation = json.optString("orientation", "PORTRAIT"),

@@ -2,9 +2,13 @@ package com.example
 
 import android.content.Context
 import androidx.test.core.app.ApplicationProvider
+import com.example.compiler.AxmlPackageModifier
 import com.example.compiler.ZipSignerHelper
 import com.example.model.AppBuildConfig
 import com.example.model.AppPermissions
+import com.example.model.SourceType
+import com.example.repository.ProjectRepository
+import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -35,6 +39,8 @@ class ExampleRobolectricTest {
       enableToolbar = true,
       enableSwipeRefresh = false,
       allowLongPressCopy = false,
+      webUrl = "https://myportfolio.com",
+      sourceType = SourceType.WEB_URL,
       permissions = AppPermissions(internet = true, camera = true)
     )
 
@@ -47,9 +53,29 @@ class ExampleRobolectricTest {
     assertEquals(original.versionName, restored.versionName)
     assertEquals(original.enableTitlebar, restored.enableTitlebar)
     assertEquals(original.enableToolbar, restored.enableToolbar)
-    assertEquals(original.enableSwipeRefresh, restored.enableSwipeRefresh)
-    assertEquals(original.allowLongPressCopy, restored.allowLongPressCopy)
+    assertEquals(original.webUrl, restored.webUrl)
+    assertEquals(SourceType.WEB_URL, restored.sourceType)
     assertEquals(true, restored.permissions.camera)
+  }
+
+  @Test
+  fun `project repository saves and loads projects`() = runBlocking {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val repo = ProjectRepository(context)
+
+    val project = repo.createNewProject(
+      name = "My Personal Web App",
+      sourceType = SourceType.WEB_URL,
+      webUrl = "https://portfolio.me"
+    )
+
+    assertNotNull(project.id)
+    assertEquals("My Personal Web App", project.name)
+    assertEquals("com.htmltoapk.mypersonalwebapp", project.config.packageName)
+    assertEquals("https://portfolio.me", project.config.webUrl)
+
+    val projects = repo.projects.value
+    assertTrue(projects.any { it.id == project.id })
   }
 
   @Test

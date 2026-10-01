@@ -13,12 +13,13 @@ import com.example.model.BuildLogEntry
 import com.example.model.BuildResult
 import com.example.model.LogLevel
 import com.example.model.SourceType
+import com.example.repository.ProjectRepository
+import com.example.repository.SavedProject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import java.io.File
 
 enum class AppScreen {
   HOME,
@@ -41,6 +42,12 @@ sealed interface BuildUiState {
 class HTMLToAPKViewModel(application: Application) : AndroidViewModel(application) {
 
   private val compilerEngine = ApkCompilerEngine(application)
+  val projectRepository = ProjectRepository(application)
+
+  val savedProjects: StateFlow<List<SavedProject>> = projectRepository.projects
+
+  private val _activeProjectId = MutableStateFlow<String?>(null)
+  val activeProjectId: StateFlow<String?> = _activeProjectId.asStateFlow()
 
   private val _currentScreen = MutableStateFlow(AppScreen.HOME)
   val currentScreen: StateFlow<AppScreen> = _currentScreen.asStateFlow()
@@ -83,36 +90,105 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
     }
   }
 
+  // --- Project Management & Persistence ---
+
+  fun createProject(
+    name: String,
+    sourceType: SourceType,
+    webUrl: String = "",
+    customPackage: String? = null
+  ) {
+    viewModelScope.launch {
+      val project = projectRepository.createNewProject(
+        name = name,
+        sourceType = sourceType,
+        webUrl = webUrl,
+        customPackage = customPackage
+      )
+      _activeProjectId.value = project.id
+      _config.value = project.config
+      _builderStep.value = 1
+      _currentScreen.value = AppScreen.BUILDER
+    }
+  }
+
+  fun openProject(project: SavedProject) {
+    _activeProjectId.value = project.id
+    _config.value = project.config
+    _builderStep.value = 1
+    _currentScreen.value = AppScreen.BUILDER
+  }
+
+  fun saveCurrentProject() {
+    viewModelScope.launch {
+      val currentConfig = _config.value
+      val currentId = _activeProjectId.value ?: currentConfig.id
+      val project = SavedProject(
+        id = currentId,
+        name = currentConfig.appTitle,
+        description = if (currentConfig.sourceType == SourceType.WEB_URL) currentConfig.webUrl else "HTML5 Application",
+        config = currentConfig
+      )
+      projectRepository.saveProject(project)
+    }
+  }
+
+  fun deleteProject(projectId: String) {
+    viewModelScope.launch {
+      projectRepository.deleteProject(projectId)
+      if (_activeProjectId.value == projectId) {
+        _activeProjectId.value = null
+        _config.value = AppBuildConfig()
+      }
+    }
+  }
+
   // Configuration Updates
   fun updateTitle(title: String) {
     _config.update {
       val sanitized = title.trim().ifEmpty { "My Web App" }
-      val autoPkg = "com.user." + sanitized.lowercase().replace(Regex("[^a-z0-9]"), "")
+      val autoPkg = "com.htmltoapk." + sanitized.lowercase().replace(Regex("[^a-z0-9]"), "").ifEmpty { "app" }
       it.copy(
         appTitle = title,
-        packageName = if (it.packageName == "com.user.htmlapp") autoPkg else it.packageName
+        packageName = if (it.packageName == "com.htmltoapk.mywebapp" || it.packageName.startsWith("com.htmltoapk.")) autoPkg else it.packageName
       )
     }
+    saveCurrentProject()
   }
 
   fun updatePackageName(pkg: String) {
     _config.update { it.copy(packageName = pkg.trim()) }
+    saveCurrentProject()
   }
 
   fun updateVersion(versionName: String, versionCode: Int) {
     _config.update { it.copy(versionName = versionName, versionCode = versionCode) }
+    saveCurrentProject()
+  }
+
+  fun updateWebUrl(url: String) {
+    _config.update { it.copy(webUrl = url.trim(), sourceType = SourceType.WEB_URL) }
+    saveCurrentProject()
+  }
+
+  fun updateOfflineFallbackHtml(html: String) {
+    _config.update { it.copy(offlineFallbackHtml = html) }
+    saveCurrentProject()
   }
 
   fun updateRawHtml(html: String) {
     _config.update { it.copy(rawHtmlContent = html, sourceType = SourceType.RAW_HTML) }
+    saveCurrentProject()
   }
 
   fun updateCustomCss(css: String) {
     _config.update { it.copy(customCss = css) }
+    saveCurrentProject()
   }
 
   fun updateCustomJs(js: String) {
     _config.update { it.copy(customJs = js) }
+    saveCurrentProject()
   }
 
   fun updateSourceType(type: SourceType, uri: String? = null) {
@@ -122,38 +198,47 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
         iconUri = uri ?: it.iconUri
       )
     }
+    saveCurrentProject()
   }
 
   fun updateIconUri(uri: String?) {
     _config.update { it.copy(iconUri = uri) }
+    saveCurrentProject()
   }
 
   fun updateSplashUri(uri: String?) {
     _config.update { it.copy(splashUri = uri) }
+    saveCurrentProject()
   }
 
   fun updateToggleTitlebar(enabled: Boolean) {
     _config.update { it.copy(enableTitlebar = enabled) }
+    saveCurrentProject()
   }
 
   fun updateToggleToolbar(enabled: Boolean) {
     _config.update { it.copy(enableToolbar = enabled) }
+    saveCurrentProject()
   }
 
   fun updateToggleSwipeRefresh(enabled: Boolean) {
     _config.update { it.copy(enableSwipeRefresh = enabled) }
+    saveCurrentProject()
   }
 
   fun updateToggleLongPressCopy(enabled: Boolean) {
     _config.update { it.copy(allowLongPressCopy = enabled) }
+    saveCurrentProject()
   }
 
   fun updateToggleZoom(enabled: Boolean) {
     _config.update { it.copy(allowZoom = enabled) }
+    saveCurrentProject()
   }
 
   fun updateOrientation(orientation: String) {
     _config.update { it.copy(orientation = orientation) }
+    saveCurrentProject()
   }
 
   fun updatePermission(
@@ -175,6 +260,7 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
         )
       )
     }
+    saveCurrentProject()
   }
 
   fun loadPreset(presetType: String) {
@@ -183,6 +269,8 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
         _config.update {
           it.copy(
             appTitle = "Counter & Bridge",
+            packageName = "com.htmltoapk.counterbridge",
+            sourceType = SourceType.RAW_HTML,
             rawHtmlContent = AppBuildConfig.DEFAULT_HTML_PRESET,
             enableSwipeRefresh = true,
             allowLongPressCopy = true,
@@ -193,107 +281,118 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
       "GAME" -> {
         _config.update {
           it.copy(
-            appTitle = "Retro Tap Game",
+            appTitle = "Retro Arcade Game",
+            packageName = "com.htmltoapk.retrogames",
+            sourceType = SourceType.RAW_HTML,
             rawHtmlContent = AppBuildConfig.PRESET_RETRO_GAME,
             enableSwipeRefresh = false,
             allowLongPressCopy = false,
             enableTitlebar = false,
-            enableToolbar = false,
-            orientation = "PORTRAIT"
+            enableToolbar = false
           )
         }
       }
       "CYBER" -> {
         _config.update {
           it.copy(
-            appTitle = "Cyber Telemetry",
+            appTitle = "Telemetry Dashboard",
+            packageName = "com.htmltoapk.cyberdash",
+            sourceType = SourceType.RAW_HTML,
             rawHtmlContent = AppBuildConfig.PRESET_CYBER_DASHBOARD,
             enableSwipeRefresh = true,
             allowLongPressCopy = true,
+            enableTitlebar = true,
+            enableToolbar = true
+          )
+        }
+      }
+      "WEB_URL" -> {
+        _config.update {
+          it.copy(
+            appTitle = "Web App Portal",
+            packageName = "com.htmltoapk.webappportal",
+            sourceType = SourceType.WEB_URL,
+            webUrl = "https://example.com",
+            enableTitlebar = true,
             enableToolbar = true,
-            orientation = "PORTRAIT"
+            enableSwipeRefresh = true
           )
         }
       }
     }
+    saveCurrentProject()
   }
 
-  fun addPreviewLog(log: String) {
-    _previewLogs.update { (it + log).takeLast(50) }
-  }
+  // --- Build Orchestration ---
 
-  fun clearPreviewLogs() {
-    _previewLogs.value = emptyList()
-  }
-
-  // Compilation
   fun startBuild() {
-    val cfg = _config.value
     _currentScreen.value = AppScreen.PROGRESS
-    val logList = mutableListOf<BuildLogEntry>()
-
     _buildState.value = BuildUiState.Building(
       progress = 0.05f,
-      statusText = "Initializing compiler engine...",
-      logs = logList
+      statusText = "Initializing build engine...",
+      logs = listOf(BuildLogEntry(message = "Build task queued", level = LogLevel.INFO))
     )
 
     viewModelScope.launch {
       try {
-        val result = compilerEngine.compile(cfg) { progress, message, level ->
-          logList.add(BuildLogEntry(message = message, level = level))
-          _buildState.value = BuildUiState.Building(
-            progress = progress,
-            statusText = message,
-            logs = ArrayList(logList)
-          )
+        val result = compilerEngine.compile(_config.value) { progress, status, level ->
+          val currentLogs = when (val state = _buildState.value) {
+            is BuildUiState.Building -> state.logs + BuildLogEntry(message = status, level = level)
+            else -> listOf(BuildLogEntry(message = status, level = level))
+          }
+          _buildState.value = BuildUiState.Building(progress, status, currentLogs)
         }
 
         _buildState.value = BuildUiState.Success(result)
         _recentBuilds.update { listOf(result) + it.take(9) }
+        saveCurrentProject()
       } catch (e: Exception) {
-        val errEntry = BuildLogEntry(message = "Build failed: ${e.message}", level = LogLevel.ERROR)
-        logList.add(errEntry)
+        val currentLogs = when (val state = _buildState.value) {
+          is BuildUiState.Building -> state.logs + BuildLogEntry(message = "ERROR: ${e.message}", level = LogLevel.ERROR)
+          else -> listOf(BuildLogEntry(message = "ERROR: ${e.message}", level = LogLevel.ERROR))
+        }
         _buildState.value = BuildUiState.Error(
-          error = e.localizedMessage ?: "Unknown compilation error occurred.",
-          logs = ArrayList(logList)
+          error = e.message ?: "Unknown compilation error",
+          logs = currentLogs
         )
       }
     }
   }
 
-  // Export / Actions
   fun saveApkToDownloads(context: Context, result: BuildResult) {
-    val file = result.apkFile ?: return
-    try {
+    result.apkFile?.let { file ->
       val uri = compilerEngine.saveApkToDownloads(file, result.config.appTitle)
       if (uri != null) {
-        Toast.makeText(context, "Saved APK to Downloads/HTML_to_APK folder!", Toast.LENGTH_LONG).show()
+        Toast.makeText(context, "APK saved to Downloads/HTML_to_APK", Toast.LENGTH_LONG).show()
       } else {
-        Toast.makeText(context, "Could not save to Downloads.", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Failed to save APK", Toast.LENGTH_SHORT).show()
       }
-    } catch (e: Exception) {
-      Toast.makeText(context, "Export error: ${e.message}", Toast.LENGTH_SHORT).show()
     }
   }
 
   fun shareApk(context: Context, result: BuildResult) {
-    val file = result.apkFile ?: return
-    try {
+    result.apkFile?.let { file ->
       val intent = compilerEngine.createShareIntent(file)
-      context.startActivity(android.content.Intent.createChooser(intent, "Share APK via"))
-    } catch (e: Exception) {
-      Toast.makeText(context, "Share error: ${e.message}", Toast.LENGTH_SHORT).show()
+      context.startActivity(android.content.Intent.createChooser(intent, "Share Compiled APK"))
     }
   }
 
   fun installApk(context: Context, result: BuildResult) {
-    val file = result.apkFile ?: return
-    try {
-      val intent = compilerEngine.createInstallIntent(file)
-      context.startActivity(intent)
-    } catch (e: Exception) {
-      Toast.makeText(context, "Install error: ${e.message}", Toast.LENGTH_SHORT).show()
+    result.apkFile?.let { file ->
+      try {
+        val intent = compilerEngine.createInstallIntent(file)
+        context.startActivity(intent)
+      } catch (e: Exception) {
+        Toast.makeText(context, "Install launch failed: ${e.message}", Toast.LENGTH_LONG).show()
+      }
     }
+  }
+
+  fun addPreviewLog(log: String) {
+    _previewLogs.update { (it + log).takeLast(100) }
+  }
+
+  fun clearPreviewLogs() {
+    _previewLogs.value = emptyList()
   }
 }
