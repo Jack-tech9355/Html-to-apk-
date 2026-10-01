@@ -202,12 +202,22 @@ class HTMLToAPKViewModel(application: Application) : AndroidViewModel(applicatio
   }
 
   fun updateIconUri(uri: String?) {
-    _config.update { it.copy(iconUri = uri) }
+    if (uri != null && (uri.startsWith("content://") || uri.startsWith("file://"))) {
+      val cached = com.example.compiler.IconProcessor.copyToPermanentCache(getApplication(), Uri.parse(uri), "icon")
+      _config.update { it.copy(iconUri = cached ?: uri) }
+    } else {
+      _config.update { it.copy(iconUri = uri) }
+    }
     saveCurrentProject()
   }
 
   fun updateSplashUri(uri: String?) {
-    _config.update { it.copy(splashUri = uri) }
+    if (uri != null && (uri.startsWith("content://") || uri.startsWith("file://"))) {
+      val cached = com.example.compiler.IconProcessor.copyToPermanentCache(getApplication(), Uri.parse(uri), "splash")
+      _config.update { it.copy(splashUri = cached ?: uri) }
+    } else {
+      _config.update { it.copy(splashUri = uri) }
+    }
     saveCurrentProject()
   }
 

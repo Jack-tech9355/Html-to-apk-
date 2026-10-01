@@ -189,6 +189,17 @@ class ApkCompilerEngine(private val context: Context) {
     dynamicAssets["assets/app_config.json"] = configJsonBytes
     log("Serialized assets/app_config.json with runtime flags & toggles", LogLevel.INFO)
 
+    // Process custom icon & splash branding
+    val branding = IconProcessor.process(context, config.iconUri, config.splashUri)
+    if (branding.appIconPng != null) {
+      dynamicAssets["assets/app_icon.png"] = branding.appIconPng
+      log("Generated multi-density custom icons (${branding.mipmapIcons.size} files)", LogLevel.INFO)
+    }
+    if (branding.splashPng != null) {
+      dynamicAssets["assets/splash_image.png"] = branding.splashPng
+      log("Generated custom splash screen image", LogLevel.INFO)
+    }
+
     log("[STAGE 4/5] Re-packaging APK & rewriting package to ${config.packageName}...", LogLevel.STAGE)
     delay(200)
 
@@ -197,6 +208,7 @@ class ApkCompilerEngine(private val context: Context) {
     val fos = FileOutputStream(unsignedApk)
     val zos = ZipOutputStream(fos)
 
+    val replacedMipmaps = mutableSetOf<String>()
     val entries = zipFile.entries()
     while (entries.hasMoreElements()) {
       val entry = entries.nextElement()
@@ -220,6 +232,34 @@ class ApkCompilerEngine(private val context: Context) {
         continue
       }
 
+      if (name == "resources.arsc") {
+        // Rewrite the app title and package name in resources.arsc
+        val origBytes = zipFile.getInputStream(entry).use { it.readBytes() }
+        val modifiedBytes = ArscModifier.modifyArsc(origBytes, newPkg = config.packageName, newTitle = config.appTitle)
+        val newEntry = ZipEntry("resources.arsc")
+        newEntry.time = entry.time
+        zos.putNextEntry(newEntry)
+        zos.write(modifiedBytes)
+        zos.closeEntry()
+        log("Rewrote resources.arsc (App Title: ${config.appTitle}, Package: ${config.packageName})", LogLevel.INFO)
+        continue
+      }
+
+      // If custom icon provided, replace mipmaps and omit anydpi-v26 adaptive wrapper so custom PNG is displayed
+      if (branding.appIconPng != null) {
+        if (name.startsWith("res/mipmap-anydpi-v26/")) continue
+        if (branding.mipmapIcons.containsKey(name)) {
+          val customIconData = branding.mipmapIcons[name]!!
+          val newEntry = ZipEntry(name)
+          newEntry.time = entry.time
+          zos.putNextEntry(newEntry)
+          zos.write(customIconData)
+          zos.closeEntry()
+          replacedMipmaps.add(name)
+          continue
+        }
+      }
+
       val newEntry = ZipEntry(name)
       newEntry.time = entry.time
       zos.putNextEntry(newEntry)
@@ -227,6 +267,18 @@ class ApkCompilerEngine(private val context: Context) {
       zos.closeEntry()
     }
     zipFile.close()
+
+    // Add any remaining custom mipmap icons not in base APK
+    if (branding.appIconPng != null) {
+      for ((iconPath, iconData) in branding.mipmapIcons) {
+        if (!replacedMipmaps.contains(iconPath)) {
+          val newEntry = ZipEntry(iconPath)
+          zos.putNextEntry(newEntry)
+          zos.write(iconData)
+          zos.closeEntry()
+        }
+      }
+    }
 
     // Write all user web assets
     for ((path, data) in dynamicAssets) {
